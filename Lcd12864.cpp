@@ -12,13 +12,13 @@ Lcd12864::Lcd12864(byte pBgLight, byte pMOSI, byte pCLK, byte pAO, byte pREST, b
 	pinCS = pCS;
 }
 
-void Lcd12864::sendByte(unsigned char Dbyte)
+void Lcd12864::sendByte(uint8_t Dbyte)
 {
   digitalWrite(pinCS, LOW);
 #if PHYSICAL_SPI
   SPI.transfer(Dbyte);
 #else
-  unsigned char TEMP; 
+  uint8_t TEMP; 
   TEMP=Dbyte;
   for(int i = 0; i < 8; i++)
   {
@@ -31,13 +31,13 @@ void Lcd12864::sendByte(unsigned char Dbyte)
   digitalWrite(pinCS, HIGH);
 }
 
-void Lcd12864::sendCmd(unsigned char Cbyte)
+void Lcd12864::sendCmd(uint8_t command)
 {
   digitalWrite(pinAO, LOW);
-  sendByte(Cbyte);
+  sendByte(command);
 }
 
-void Lcd12864::sendData(unsigned char Dbyte)
+void Lcd12864::sendData(uint8_t Dbyte)
 {
   digitalWrite(pinAO, HIGH);
   sendByte(Dbyte);
@@ -83,7 +83,7 @@ void Lcd12864::setup()
   sendCmd(0x2f);//set power control
   sendCmd(0x40);//set scroll line
   sendCmd(0x81);//SET ELECTRONIC VOLUME
-  sendCmd(0x20);//set pm: 通过改变这里的数值来改变电压 
+  sendCmd(0x20);//set pm: 通过改变这里的数值来改变电压 Change the voltage by changing the value here
   //sendCmd(0xa6);//set inverse display	   a6 off, a7 on
   //sendCmd(0xa4);//set all pixel on
   sendCmd(0xaf);//set display enable
@@ -92,160 +92,133 @@ void Lcd12864::setup()
 }
 
 /*************************
- * 8*8字符，取模顺序是列行式，
+ * 取模顺序是列行式，
  * 从上到下，高位在前，从左到右；
  * 先选择页地址0-7，再选择列0-130
  * 页码是直接读取8位数据作为地址；
  * 列是先读取高四位，后读取低四位；
+ *
+ * The order of sampling is column-lined,
+ * From top to bottom, the high position is in front, from left to right;
+ * First select page address 0-7, then select column 0-127
+ * The page number is to directly read 8-bit data as an address;
+ * The column reads the upper four bits first, then reads the lower four bits;
  **********************/
-void Lcd12864::render8x8(unsigned char row,unsigned char col,unsigned char count,unsigned char const *put)
-{		
-  unsigned int X=0;
-  unsigned int i=0,j=0;
-  sendCmd(0xb0+row);
-  sendCmd(0x10+(8*col/16));		
-  sendCmd(0x00+(8*col%16));
-  for(j=0;j<count;j++)
-    for(i=0;i<8;i++) sendData(put[X++]); 	
+
+
+void setPosition(uint8_t command, uint8_t row,uint8_t col1, uint8_t col2){
+  sendCmd(command+row);
+  sendCmd(0x10+col1);
+  sendCmd(0x00+col2);
+}
+
+
+void setCharPosition(uint8_t command, uint8_t row,uint8_t col){
+  setPosition(command, row, (8*col/16), (8*col%16))
+}
+
+uint16_t writeRow(uint16_t X, uint8_t length, uint8_t command, uint8_t row,uint8_t col, uint8_t const *put){
+    setCharPosition(command, row, col);
+    for(uint16_t i=0;i<length;i++) {
+      sendData(put[X++]);
+    }
 }
 
 /*****************
- * 8*16字符，取模顺序是列行式，
- * 从上到下，高位在前，从左到右；
- * 先选择页地址0-7，再选择列0-127
- * 页码是直接读取8位数据作为地址；
- * 列是先读取高四位，后读取低四位；
+ * 8*16字符
+ * 8*16 characters
  **********************/
-void Lcd12864::render8x16(unsigned char row,unsigned char col,unsigned char count,unsigned char const *put)
+void Lcd12864::render8x8(uint8_t row,uint8_t col,uint8_t count,uint8_t const *put)
 {		
-  unsigned int X=0;
- unsigned int i=0,j=0;
-  sendCmd(0xb0+row);
-  sendCmd(0x10+(8*col/16));		
-  sendCmd(0x00+(8*col%16));
-  for(j=0;j<count;j++)
-  { 
-    for(i=0;i<8;i++) sendData(put[X++]); 
-    sendCmd(0xb1+row);	
-    sendCmd(0x10+(8*col/16));		
-    sendCmd(0x00+(8*col%16));
-    for(i=0;i<8;i++) sendData(put[X++]);
-    sendCmd(0xb0+row);
-    col=col+1; 
+  uint16_t X=0;
+  for(uint16_t j=0;j<count;j++){
+    X = writeRow(X, 8, 0xb0, row, col, put);
+  }
+}
+
+/*****************
+ * 8*16字符
+ * 8*16 characters
+ **********************/
+void Lcd12864::render8x16(uint16_t X, uint8_t row,uint8_t col,uint8_t count,uint8_t const *put)
+{		
+  uint16_t X=0;
+  for(uint16_t j=0;j<count;j++)
+  {
+    X = writeRow(X, 8, 0xb0, row, col, put);
+    X = writeRow(X, 8, 0xb1, row, col, put);
+    col+=1;
   } 
 }
 
 /*****************
- * 16*16字符，取模顺序是列行式，
- * 从上到下，高位在前，从左到右；
- * 先选择页地址0-7，再选择列0-127
- * 页码是直接读取8位数据作为地址；
- * 列是先读取高四位，后读取低四位；
+ * 16*16字符
+ * 16*16 characters
  **********************/
-void Lcd12864::render16x16(unsigned char row,unsigned char col,unsigned char count,unsigned char const *put)
+void Lcd12864::render16x16(uint8_t row,uint8_t col,uint8_t count,uint8_t const *put)
 {		
-  unsigned int X=0;
- unsigned int i=0,j=0;
-  sendCmd(0xb0+row);
-  sendCmd(0x10+(8*col/16));		
-  sendCmd(0x00+(8*col%16));
-  for(j=0;j<count;j++)
-  { 
-    for(i=0;i<16;i++) sendData(put[X++]); 
-    sendCmd(0xb1+row);	
-    sendCmd(0x10+(8*col/16));		
-    sendCmd(0x00+(8*col%16));
-    for(i=0;i<16;i++) sendData(put[X++]);
-    sendCmd(0xb0+row);	 
-    col=col+2; 
+  uint16_t X=0;
+  for(uint16_t j=0;j<count;j++)
+  {
+    X = writeRow(X, 16, 0xb0, row, col, put);
+    X = writeRow(X, 16, 0xb1, row, col, put);
+    col+=2;
   }
 }
 
 /*****************
- * 24*24字符，取模顺序是列行式，
- * 从上到下，高位在前，从左到右；
- * 先选择页地址0-7，再选择列0-127
- * 页码是直接读取8位数据作为地址；
- * 列是先读取高四位，后读取低四位；
+ * 24*24字符
+ * 24*24 characters
  **********************/
-void Lcd12864::render24x24(unsigned char row,unsigned char col,unsigned char count,unsigned char const *put)
+void Lcd12864::render24x24(uint8_t row,uint8_t col,uint8_t count,uint8_t const *put)
 {		
-  unsigned int X=0;
- unsigned int i=0,j=0;
-  sendCmd(0xb0+row);
-  sendCmd(0x10+(8*col/16));		
-  sendCmd(0x00+(8*col%16));
-  for(j=0;j<count;j++)
-  { 
-    for(i=0;i<24;i++) sendData(put[X++]); 
-    sendCmd(0xb1+row);	
-    sendCmd(0x10+(8*col/16));		
-    sendCmd(0x00+(8*col%16));
-    for(i=0;i<24;i++) sendData(put[X++]);
-    sendCmd(0xb2+row);	
-    sendCmd(0x10+(8*col/16));		
-    sendCmd(0x00+(8*col%16));
-    for(i=0;i<24;i++) sendData(put[X++]);
-    sendCmd(0xb0+row);
-    col=col+3; 
+  uint16_t X=0;
+  for(uint16_t j=0;j<count;j++)
+  {
+    X = writeRow(X, 24, 0xb1, row, col, put);
+    X = writeRow(X, 24, 0xb2, row, col, put);
+    X = writeRow(X, 24, 0xb0, row, col, put);
+    col+=3;
   }
 }
 
 /*****************
- * 图片；取模顺序是列行式，
- * 从上到下，低在前，从左到右；
- * 先选择页地址0-7，再选择列0-127
- * 页码是直接读取8位数据作为地址；
- * 列是先读取高四位，后读取低四位；
+ * 图片；
+ * Renders Picture;
  **********************/
-void Lcd12864::renderBmp(unsigned char const *put)
+void Lcd12864::renderBmp(uint8_t const *put)
 {		
-  unsigned int X=0;
-  unsigned int i=0,j=0;
-  for(j=0;j<8;j++)
+  uint16_t X=0;
+  for(uint16_t j=0;j<8;j++)
   {
-    sendCmd(0xb0+j); 
-    sendCmd(0x10);		
-    sendCmd(0x00);
-    for(i=0;i<128;i++) sendData(put[X++]); 
+    setPosition(0xb0, j, 0, 0)
+    for(uint16_t i=0;i<128;i++) sendData(put[X++]);
   }	
 }
 
 /*****************
- * 图片反显；取模顺序是列行式，
- * 从上到下，位在前，从左到右；
- * 先选择页地址0-7，再选择列0-127
- * 页码是直接读取8位数据作为地址；
- * 列是先读取高四位，后读取低四位；
+ * 图片反显；
+ * Renders Picture Inverted
  **********************/
-void Lcd12864::renderReversedBmp(unsigned char const *put)
-{		
-  unsigned int X=0;
- unsigned int i=0,j=0;
-  for(j=0;j<8;j++)
+void Lcd12864::renderReversedBmp(uint8_t const *put)
+{
+  uint16_t X=0;
+  for(uint16_t j=0;j<8;j++)
   {
-    sendCmd(0xb0+j); 
-    sendCmd(0x10);		
-    sendCmd(0x00);
-    for(i=0;i<128;i++) sendData(~put[X++]); 
+    setPosition(0xb0, j, 0, 0)
+    for(uint16_t i=0;i<128;i++) sendData(~put[X++]);
   }	
 }
 
 /*****************
- * 清屏；取模顺序是列行式，
- * 从上到下，低位在前，从左到右；
- * 先选择页地址0-7，再选择列0-127
- * 页码是直接读取8位数据作为地址；
- * 列是先读取高四位，后读取低四位；
+ * 清屏；
+ * Clear screen;
  **********************/
 void Lcd12864::clear()
 {	 
-  unsigned char x,y;
-  for(y=0;y<8;y++)
+  for(uint8_t j=0;j<8;j++)
   {    
-    sendCmd(0xb0+y);
-    sendCmd(0x10);		
-    sendCmd(0x00);
-    for(x=0;x<132;x++)  sendData(0); 
+    setPosition(0xb0, j, 0, 0)
+    for(uint8_t x=0;x<128;x++)  sendData(0);
   }	
 }	 
