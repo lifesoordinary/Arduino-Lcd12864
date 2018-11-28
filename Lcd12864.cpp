@@ -114,7 +114,7 @@ void setPosition(uint8_t command, uint8_t row,uint8_t col1, uint8_t col2){
 
 
 void setCharPosition(uint8_t command, uint8_t row,uint8_t col){
-  setPosition(command, row, (8*col/16), (8*col%16))
+  setPosition(command, row, (col/2), (8*col%16));
 }
 
 uint16_t writeRow(uint16_t X, uint8_t length, uint8_t command, uint8_t row,uint8_t col, uint8_t const *put){
@@ -191,7 +191,7 @@ void Lcd12864::renderBmp(uint8_t const *put)
   uint16_t X=0;
   for(uint16_t j=0;j<8;j++)
   {
-    setPosition(0xb0, j, 0, 0)
+    setPosition(0xb0, j, 0, 0);
     for(uint16_t i=0;i<128;i++) sendData(put[X++]);
   }	
 }
@@ -205,7 +205,7 @@ void Lcd12864::renderReversedBmp(uint8_t const *put)
   uint16_t X=0;
   for(uint16_t j=0;j<8;j++)
   {
-    setPosition(0xb0, j, 0, 0)
+    setPosition(0xb0, j, 0, 0);
     for(uint16_t i=0;i<128;i++) sendData(~put[X++]);
   }	
 }
@@ -218,7 +218,7 @@ void Lcd12864::clear()
 {	 
   for(uint8_t j=0;j<8;j++)
   {    
-    setPosition(0xb0, j, 0, 0)
+    setPosition(0xb0, j, 0, 0);
     for(uint8_t x=0;x<128;x++)  sendData(0);
   }	
 }	 
